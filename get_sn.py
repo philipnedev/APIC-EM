@@ -1,19 +1,17 @@
 #!/usr/bin/env python
 '''
-Returns or displays the number of wired and wireless hosts
+Show the switch IP address and hostname to which the device with give MAC address is connected .
 '''
 # import requests library to do the REST API Calls
 import requests
+from prettytable import PrettyTable
+
 
 #import json library. APIC-EM answers in
 import json
 
 #import sys module
 import sys
-
-#For pretty tables
-from prettytable import PrettyTable
-
 
 #Removes non-secure communication wornings
 requests.packages.urllib3.disable_warnings()
@@ -60,55 +58,62 @@ def get_ticket():
     #parse the json to get the service ticket
     return r_json["response"]["serviceTicket"]
 
-def count_host_types(ticket, type):
-    '''Gets the number of hosts connected with the given type
+def get_hosts(ticket):
+    '''Gets all the hosts connected to the APIC-EM managed network
 
     Args:
-        ticket - string - Valid APIC-EM ticket
-        type - string - type of connectivity - "wired", "wireless"
+        ticket - Valid APIC-EM ticket
 
     Returns:
-        number of devices - int
+        Dictionary with all the hosts
     '''
+    # URL for Host REST API call to get list of exisitng hosts on the network.
+    url = url_constructor("host")
 
+    #Content type must be included in the header as well as the ticket
+    header = {"content-type": "application/json", "X-Auth-Token":ticket}
 
-    url = url_constructor("host/count?hostType=" + type)
-
-    header = {"content-type": "application/json", "X-Auth-Token": ticket}
-
+    # this statement performs a GET on the specified host url
     response = requests.get(url, headers=header, verify=False)
 
-    answer = response.json()
-    return answer["response"]
+    return response.json()
 
+def get_sn(ticket,type):
+    '''Gets all the network device part hostname , part number, serial number
 
-def main(output=""):
-    '''Displays the result or returns it as tuple
+        Args:
+            ticket - Valid APIC-EM ticket
 
-    Args:
-        output - desired output
-            None - will return a tuple (wired,wireless) with the two numbers
-            prrety - will use PrretyTables module to display the results in table
-            ugly - will print simple two lines with the result
+        Returns:
+            Dictionary with all the hosts
+        '''
+    # URL for Host REST API call to get list of exisitng hosts on the network.
+    url = url_constructor("network-device")
 
-    Returns:
-        (wired, wireless) - tuple (int,int)
+    # Content type must be included in the header as well as the ticket
+    header = {"content-type": "application/json", "X-Auth-Token": ticket}
 
-    '''
-    ticket = get_ticket()
-    wired = count_host_types(ticket, "wired")
-    wireless = count_host_types(ticket, "wireless")
-    if output == "pretty":
-        x = PrettyTable(["Type", "Wired", "Wireless"])
+    # this statement performs a GET on the specified host url
+    response = requests.get(url, headers=header, verify=False)
+
+    devices = response.json()['response']
+    if type == 'pretty':
+        x = PrettyTable(["Hostname", "Part Number", "Serial Number"])
         x.align["IP Address"] = "c"
         x.padding_width = 1
-        x.add_row(["Count", wired, wireless])
+
+        for i in devices:
+            x.add_row([i['hostname'], i['platformId'], i['serialNumber']])
+
         print x
-    elif output == "ugly":
-        print "Wired: " + str(wired)
-        print "Wireless: " + str(wireless)
     else:
-        return wired, wireless
+        for i in devices:
+            print i['serialNumber']
+
+
+def main(type='ugly'):
+    ticket = get_ticket()
+    get_sn(ticket,type)
 
 if __name__ == "__main__":
     try:
